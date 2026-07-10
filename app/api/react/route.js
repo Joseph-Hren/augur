@@ -63,6 +63,13 @@ const IP_LIMITER = redis
 const VISITOR_COOKIE_NAME = "augur_visitor_id";
 const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
+// Lets the site owner test past the 3/week cap without it applying to
+// everyone. Visiting once with ?dev=<DEV_BYPASS_TOKEN> sets a cookie so the
+// query param isn't needed again. This only skips the count/block — the
+// real work (and its cost) still happens exactly as normal.
+const DEV_BYPASS_COOKIE_NAME = "augur_dev_bypass";
+const DEV_BYPASS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
 const SEVERITY_ENUM = ["Critical", "Severe", "Moderate", "Minor"];
 const CONFIDENCE_ENUM = ["High Confidence", "Confident", "Suspected", "Uncertain"];
 const RATING_ENUM = ["Excellent", "Efficient", "Strong", "Adequate"];
@@ -337,31 +344,45 @@ export async function POST(request) {
   // below: the whole point is avoiding that cost for requests over the
   // limit, not spending it and rejecting the result afterward.
   if (VISITOR_COOKIE_LIMITER && IP_LIMITER) {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const cookieStore = await cookies();
-    let visitorId = cookieStore.get(VISITOR_COOKIE_NAME)?.value;
-    if (!visitorId) {
-      visitorId = randomUUID();
-      cookieStore.set(VISITOR_COOKIE_NAME, visitorId, {
-        maxAge: VISITOR_COOKIE_MAX_AGE,
+    const devToken =
+      new URL(request.url).searchParams.get("dev") ??
+      cookieStore.get(DEV_BYPASS_COOKIE_NAME)?.value;
+    const isDevBypass = process.env.DEV_BYPASS_TOKEN && devToken === process.env.DEV_BYPASS_TOKEN;
+
+    if (isDevBypass) {
+      cookieStore.set(DEV_BYPASS_COOKIE_NAME, process.env.DEV_BYPASS_TOKEN, {
+        maxAge: DEV_BYPASS_COOKIE_MAX_AGE,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
       });
-    }
+    } else {
+      const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      let visitorId = cookieStore.get(VISITOR_COOKIE_NAME)?.value;
+      if (!visitorId) {
+        visitorId = randomUUID();
+        cookieStore.set(VISITOR_COOKIE_NAME, visitorId, {
+          maxAge: VISITOR_COOKIE_MAX_AGE,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+        });
+      }
 
-    const [cookieResult, ipResult] = await Promise.all([
-      VISITOR_COOKIE_LIMITER.limit(visitorId),
-      IP_LIMITER.limit(ip),
-    ]);
-    if (!cookieResult.success || !ipResult.success) {
-      return Response.json(
-        {
-          error:
-            "Currently, users are only allowed 3 submissions for evaluation per week. Please return next week to test another 3 URLs.",
-        },
-        { status: 429 },
-      );
+      const [cookieResult, ipResult] = await Promise.all([
+        VISITOR_COOKIE_LIMITER.limit(visitorId),
+        IP_LIMITER.limit(ip),
+      ]);
+      if (!cookieResult.success || !ipResult.success) {
+        return Response.json(
+          {
+            error:
+              "Currently, users are only allowed 3 submissions for evaluation per week. Please return next week to test another 3 URLs.",
+          },
+          { status: 429 },
+        );
+      }
     }
   }
 
