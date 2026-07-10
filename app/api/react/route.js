@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { chromium } from "playwright-core";
-import chromiumBinary from "@sparticuz/chromium";
+import chromiumBinary from "@sparticuz/chromium-min";
 import sharp from "sharp";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "fs";
@@ -8,6 +8,15 @@ import path from "path";
 
 const MAX_IMAGE_DIMENSION = 8000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // Anthropic's hard limit (10,485,760 bytes exactly)
+
+// The full @sparticuz/chromium package bundles a 64MB+ Chromium binary,
+// which exceeds Vercel's serverless function size limit and gets silently
+// dropped from the deployed bundle. @sparticuz/chromium-min instead fetches
+// this official prebuilt pack from GitHub at cold start (cached in /tmp for
+// warm invocations after that). Version pinned to match the installed
+// package version — update both together.
+const CHROMIUM_PACK_URL =
+  "https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.x64.tar";
 
 // @axe-core/playwright's default source loading breaks under Next.js's
 // server bundler ("exports is not defined" when injected into the page).
@@ -189,7 +198,7 @@ async function analyzePage(url) {
   const browser = process.env.VERCEL
     ? await chromium.launch({
         args: chromiumBinary.args,
-        executablePath: await chromiumBinary.executablePath(),
+        executablePath: await chromiumBinary.executablePath(CHROMIUM_PACK_URL),
         headless: true,
       })
     : await chromium.launch();

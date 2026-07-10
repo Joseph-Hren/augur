@@ -10,7 +10,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@axe-core/playwright": "^4.10.1",
-    "@sparticuz/chromium": "^149.0.0",
+    "@sparticuz/chromium-min": "^149.0.0",
     "next": "^15.0.3",
     "playwright": "^1.48.2",
     "playwright-core": "^1.61.1",
