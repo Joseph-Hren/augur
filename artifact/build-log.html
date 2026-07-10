@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AUGUR build log :: Joseph R. Hren</title>
+<link rel="stylesheet" href="build-log.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+  <div class="col">
+    <span class="eyebrow">Build log · Claude Code prototype</span>
+    <h1>AUGUR</h1>
+    <p class="dek">A tool that takes a URL, screenshots it, and sends the screenshot to Claude for a UX evaluation — built to demonstrate a skill increasingly expected in design roles: designing <em>for</em> AI behavior in a product, not just using AI tools inside a design workflow. This page tracks the build as it happens.</p>
+    <div class="meta-row">
+      <span>Role: <b>Product direction, prompt design, review</b></span>
+      <span>Build: <b>Claude Code</b></span>
+      <span>Stack: <b>Next.js, Playwright, Anthropic API</b></span>
+      <span>Status: <b>Ongoing, iterative build</b></span>
+    </div>
+  </div>
+  </div>
+</header>
+
+<main>
+
+  <section id="highlights">
+    <div class="wrap">
+    <div class="col">
+      <h2>Highlights</h2>
+      <ul class="notes-list">
+        <li><span class="note-label">End-to-end pipeline</span><p>A URL becomes a live browser screenshot, evaluated by Claude through a fixed UX-expert lens, and returned as readable feedback — the full loop already works.</p></li>
+        <li><span class="note-label">Secrets handled correctly</span><p>The API key lives only in a server-side environment variable from the first commit — never in client code, never in version control.</p></li>
+        <li><span class="note-label">Deliberate, not default</span><p>Model choice, prompt wording, and validation posture are each a documented decision below, not a default left unexamined.</p></li>
+      </ul>
+    </div>
+    </div>
+  </section>
+
+  <section id="overview">
+    <div class="wrap">
+    <div class="col">
+      <h2>What this is</h2>
+      <p>The goal: paste in a URL or a Figma node, get back a full heuristic review — WCAG compliance, a Nielsen-Norman-style evaluation, Everett McKay's design principles — as an annotated screenshot plus a set of recommended-fix cards.</p>
+      <p>Right now this is the core loop, minimally: a page takes a URL, a server-side step screenshots it with a headless browser, and the screenshot goes to Claude with a UX-evaluation system prompt. The reply comes back as plain text below the input. Everything past that — structured card output, automated accessibility checks, Figma support, annotation overlays — is roadmap, not yet built.</p>
+    </div>
+    </div>
+  </section>
+
+  <section id="approach">
+    <div class="wrap">
+    <div class="col">
+      <h2>Approach</h2>
+      <p>The Visa prototype (see the <a href="reference/artifact.html">VDBP build log</a>) started from a fixed functional spec and a fixed Figma file — the work was translating something already decided into working interaction. This one runs the other direction: no spec yet, no CLAUDE.md yet either. Each step is closer to a real question — what happens if the input is a URL instead of free text? What happens if the model's response is too long? — answered, tested, and folded into the next question rather than checked off a plan written in advance.</p>
+      <div class="pillar-grid">
+        <div class="pillar"><span class="eyebrow">Frontend</span><p>One page, dark slate background, light-yellow type, a single input and a GO button — unchanged in spirit since the first build.</p></div>
+        <div class="pillar"><span class="eyebrow">Backend</span><p>A single Next.js API route holds the whole server-side pipeline: screenshot, then model call.</p></div>
+        <div class="pillar"><span class="eyebrow">Model</span><p>Claude, called with a vision input (the screenshot) and a system prompt that fixes its evaluative stance.</p></div>
+        <div class="pillar"><span class="eyebrow">Spec</span><p>None yet, deliberately. A CLAUDE.md is planned once the app's actual shape stops moving.</p></div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="milestones">
+    <div class="wrap">
+    <div class="col">
+      <h2>Milestones</h2>
+      <p>Logged when something changes what the tool can do, or a real design decision gets made — not for every tweak. Smaller fixes and calls live in the <a href="#changelog">changelog</a> near the bottom.</p>
+    </div>
+    </div>
+
+    <div class="wrap">
+      <ol class="session-list">
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>Core loop: input to model reply</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">index.html → app/page.js · app/api/react/route.js</p>
+            <p>Started as a static page — "HEURISTICS" centered and bold, a text input, a "GO!" button with 4px rounded corners, dark slate background, light-yellow type. Rebuilt as a Next.js app so the button could call a real server route: it reads the input, calls the Anthropic API with a one-line prompt, and returns the reply as plain text below the button, in the same light-yellow type. The API key loads from <code>process.env.ANTHROPIC_API_KEY</code> via a <code>.gitignore</code>d <code>.env.local</code> — never hardcoded, never sent to the client.</p>
+            <div class="exhibit">
+              <figure class="exhibit exhibit--narrow"><img src="assets/images/app-empty.png" alt="HEURISTICS app shell, dark slate background, light yellow bold title, text input and GO button, no response yet." loading="lazy" /><figcaption>The shell — unchanged in spirit through everything after it</figcaption></figure>
+            </div>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>From typed text to a real UX evaluation</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/api/react/route.js</p>
+            <p>The input field's meaning changed from free text to a URL: the API route now launches headless Chromium via Playwright, navigates to the page, takes a full-page screenshot, base64-encodes it, and sends it to Claude as a vision input. Alongside it, a system prompt — <span class="code">"You are a UX expert. Evaluate whatever is sent."</span> — fixes the model's evaluative stance, so every reply reads as a UX evaluation rather than a generic reaction to an image.</p>
+            <div class="exhibit">
+              <figure class="exhibit"><img src="assets/images/app-response.png" alt="HEURISTICS app after evaluating a URL, showing the input, GO button, and a multi-paragraph model response below in light yellow text." loading="lazy" /><figcaption>Full round trip — URL in, screenshot taken server-side, evaluation back</figcaption></figure>
+            </div>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>Designing for a variable-length AI response</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/api/react/route.js · app/page.js</p>
+            <p>Longer replies were getting cut off mid-sentence — not a layout limit, but a <code>max_tokens: 300</code> ceiling on the model call, raised to 1024. Separately, an <code>overflow: hidden</code> rule was a latent clipping risk for tall content; replaced with <code>display: flow-root</code>, which prevents the same underlying CSS issue without ever clipping. The page has no fixed height anywhere, so it grows and scrolls naturally however long a reply runs — a small but real instance of designing around an AI response whose length isn't fixed or predictable.</p>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>Matching a real Figma spec, responsive</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/layout.js · app/page.js · app/page.module.css</p>
+            <p>First real design handoff: pulled exact values out of Figma (via its MCP server, not by eye) rather than approximating from a screenshot — colors, Montserrat at specific weights and sizes per breakpoint, exact component proportions for the URL field and button. Rebuilt the page against that spec: new palette (slate-dark background, amber title and button, grey-standard body text, grey-subtle field/tab text), self-hosted Montserrat via <code>next/font/google</code>, a placeholder Heuristics/Accessibility tab row with no behavior yet, and a single 620px breakpoint collapsing the desktop layout to mobile. Moved from inline styles to a CSS Module specifically so a real <code>@media</code> query could exist — inline React styles can't express that without JS viewport detection, which causes SSR/hydration issues in Next.js.</p>
+            <div class="exhibit">
+              <figure class="exhibit"><img src="assets/images/figma-redesign.png" alt="Redesigned AUGUR app matching the Figma spec: dark slate background, amber title and button, URL field, and a Heuristics/Accessibility tab row." loading="lazy" /><figcaption>Rebuilt against the Figma file's exact colors, type, and spacing</figcaption></figure>
+            </div>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>Automated accessibility scan, alongside the screenshot</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/api/react/route.js</p>
+            <p>Added <code>axe-core</code> — the same engine behind tools like WAVE and Lighthouse's accessibility audit — running in the same Playwright session that already takes the screenshot, no second page load needed. Its confirmed violations (not the "incomplete" ones, deliberately left for later) get trimmed to id, severity, description, and affected-element count, then sent to Claude as a second, clearly labeled text block alongside the image. The system prompt is untouched on purpose — how Claude should weigh automated fact vs. its own visual judgment is still an open prompt-design question, not a plumbing one.</p>
+            <p>Two real bugs on the way to working: axe-core's default source-loading throws <code>exports is not defined</code> when injected through Next.js's server bundler, fixed by reading axe-core's own prebuilt <code>axe.min.js</code> directly (via a plain <code>path.join</code>, since <code>require.resolve</code> gets rewritten by Next's bundler into something that isn't a real file path at runtime). Then Playwright itself threw <code>Please use browser.newContext()</code> — axe-core's builder opens an internal auxiliary page, which the single-page context <code>browser.newPage()</code> shortcut doesn't allow; fixed by creating an explicit context first.</p>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>Real interactivity: hover/press states, a loading animation, and the actual tab split</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/page.js · app/page.module.css · app/api/react/route.js</p>
+            <p>Pulled the Evaluate button's and tabs' hover/pressed/active states from Figma (values not cached from the original redesign pass — a second, targeted lookup) and wired them up as pure CSS, plus a bouncing-dots loading animation on the button: three 8px dots, 10px apart, staggered on a shared 1-second loop so one 0.4s rest and three sequential 0.2s bounces repeat continuously until the response is ready.</p>
+            <p>Then the real work: the tabs actually split content now, not just visually toggle. The system prompt already asked Claude for "HEURISTICS"/"ACCESSIBILITY" section titles; tightened to require them as exact <code>#</code> headings on their own line, reliable enough for the frontend to split the raw reply on the <code>ACCESSIBILITY</code> heading — with a fallback to show the whole reply under Heuristics if that heading's ever missing, since a text instruction is reliable, not guaranteed. Considered a full JSON restructure instead; deferred that to the "structured card output" roadmap item rather than take on a bigger rewrite for this step.</p>
+            <p>Built out the full loading choreography to match: the empty-state copy (or a previous result) sits still for 1.2s after clicking Evaluate, then fades over 0.6s; both tabs go inert for the whole loading window (a real <code>disabled</code> attribute, not just styling) so there's nothing to switch between yet; when the response lands, Heuristics auto-activates and its content appears immediately, with Accessibility one real click away. A <code>loadingRef</code> guards against a race where a fast response could otherwise get wiped by the fade-cleanup timer.</p>
+            <div class="exhibit">
+              <figure class="exhibit"><img src="assets/images/tab-split.png" alt="AUGUR showing a real heuristic evaluation under an active, amber-highlighted Heuristics tab, with the Accessibility tab available alongside it." loading="lazy" /><figcaption>The tabs now split real content, not just a visual toggle</figcaption></figure>
+            </div>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>Structured output: a real JSON schema, validated against live data</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/api/react/route.js — wired in and shipped in the next session below</p>
+            <p>Built real card components from Figma (severity badge, confidence badge, working-quality badge, three card types), then hit the actual limit of the free-text approach: reliably parsing ~6–7 fields per card across ~11 items via regex is fragile in a way that only mattered once there was a real UI slot waiting for each value. Replaced free-text parsing with Claude's tool-use — a JSON schema with the field list moved out of prose and into the schema itself, with <code>enum</code> constraints on every fixed-vocabulary field (severity, confidence, working-quality rating).</p>
+            <p>The <code>enum</code> constraint is a structural fix for both bugs from the last prompt round, not just a rephrasing: "Serious" or "Effective" aren't just discouraged now, they're not valid values the schema will accept. <code>secondaryStandards</code> also moved from a string needing a <code>"none"</code> sentinel to a real array — empty when there isn't one — which quietly deletes the whole "if only one standard, return 'none'" instruction; the data shape expresses it natively instead of needing a workaround in prose.</p>
+            <p class="session-summary">System prompt (trimmed — the field list and vocabulary now live in the schema below, not here):</p>
+            <p class="prompt-text">You are being given an image of a URL and a structured text block of accessibility findings (WCAG 2.2) for that same URL from an automated scan.
+
+Conduct a heuristic evaluation of the URL image based on the Nielsen-Norman Group's 10 heuristic standards. Weight the content of the page as less than the structure and interaction elements of the page.
+
+For heuristic issues: list in order of severity. Check your list of issues against the accessibility issues before finalizing — if a heuristic issue is already covered by one of the accessibility issues, skip it and surface the next most severe issue instead. If fewer than 4 real issues exist, return fewer. Do not invent issues to reach the limit.
+
+For accessibility issues, treat the provided scan data as verified fact — do not evaluate or second-guess it, only describe and explain it. List in order of severity. If fewer than 5 real issues exist in the data, return fewer.
+
+Submit your evaluation using the submit_evaluation tool.</p>
+            <p class="session-summary">Tool schema (submit_evaluation):</p>
+            <p class="prompt-text">{
+  "name": "submit_evaluation",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "workingWell": {
+        "type": "array", "minItems": 2, "maxItems": 2,
+        "items": {
+          "type": "object",
+          "properties": {
+            "rating": { "enum": ["Excellent", "Efficient", "Strong", "Adequate"] },
+            "standard": { "type": "string" },
+            "summary": { "type": "string" },
+            "confidence": { "enum": ["High Confidence", "Confident", "Suspected", "Uncertain"] }
+          },
+          "required": ["rating", "standard", "summary", "confidence"]
+        }
+      },
+      "heuristicIssues": {
+        "type": "array", "maxItems": 4,
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["Critical", "Severe", "Moderate", "Minor"] },
+            "standard": { "type": "string" },
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "recommendation": { "type": "string" },
+            "secondaryStandards": { "type": "array", "items": { "type": "string" } },
+            "confidence": { "enum": ["High Confidence", "Confident", "Suspected", "Uncertain"] }
+          },
+          "required": ["severity", "standard", "title", "description", "recommendation", "secondaryStandards", "confidence"]
+        }
+      },
+      "accessibilityIssues": {
+        "type": "array", "maxItems": 5,
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["Critical", "Severe", "Moderate", "Minor"] },
+            "standard": { "type": "string" },
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "elementsAffected": { "type": "string" },
+            "recommendation": { "type": "string" }
+          },
+          "required": ["severity", "standard", "title", "description", "elementsAffected", "recommendation"]
+        }
+      }
+    },
+    "required": ["workingWell", "heuristicIssues", "accessibilityIssues"]
+  }
+}</p>
+            <p class="session-summary">Real output, run against h1.co (trimmed to 2 of 4 heuristic issues and 2 of 5 accessibility issues for length — full run had all 4/5, all valid enum values, <code>stop_reason: "tool_use"</code>, no truncation):</p>
+            <p class="prompt-text">{
+  "workingWell": [
+    {
+      "rating": "Strong",
+      "standard": "Aesthetic and Minimalist Design",
+      "summary": "The hero and 'Trusted by' sections use a clean, uncluttered layout with strong brand color and clear typographic hierarchy, which helps convey a professional healthcare-tech image.",
+      "confidence": "Confident"
+    },
+    {
+      "rating": "Adequate",
+      "standard": "Consistency and Standards",
+      "summary": "Repeated card-based patterns for resources and solutions, along with consistent CTA button styling ('Learn More', 'Read more', 'Request a Demo'), give the page a consistent visual language.",
+      "confidence": "Confident"
+    }
+  ],
+  "heuristicIssues": [
+    {
+      "severity": "Critical",
+      "standard": "Visibility of System Status",
+      "title": "Intrusive overlay message mimics a browser/security error",
+      "description": "A large bold banner reading \"We couldn't verify the security of your connection\" appears directly over the hero content, styled like a system-level security warning rather than site content...",
+      "recommendation": "Remove or clearly restyle this message so it cannot be mistaken for a genuine browser security warning...",
+      "secondaryStandards": ["Error Prevention", "Match Between System and the Real World"],
+      "confidence": "High Confidence"
+    },
+    {
+      "severity": "Severe",
+      "standard": "Recognition Rather Than Recall",
+      "title": "Empty/placeholder-looking content sections",
+      "description": "Several sections appear to have missing or unloaded content, showing large empty areas with only a heading...",
+      "recommendation": "Verify all content blocks render correctly across viewports and add fallback/loading states so sections never appear empty.",
+      "secondaryStandards": ["Aesthetic and Minimalist Design"],
+      "confidence": "Confident"
+    }
+  ],
+  "accessibilityIssues": [
+    {
+      "severity": "Severe",
+      "standard": "WCAG 2.2 - 1.4.3 (wcag2aa, wcag143)",
+      "title": "Insufficient color contrast",
+      "description": "Four elements on the page fail to meet the minimum color contrast ratio required...",
+      "elementsAffected": "4 elements, likely including text over the blue background sections and hero overlay text",
+      "recommendation": "Adjust text and background color combinations to meet at least a 4.5:1 contrast ratio for normal text..."
+    },
+    {
+      "severity": "Severe",
+      "standard": "WCAG 2.2 - 2.4.4 / 4.1.2 (wcag2a, wcag244, wcag412)",
+      "title": "Links missing discernible text",
+      "description": "Eight links on the page lack accessible names, meaning screen reader users cannot determine their purpose or destination.",
+      "elementsAffected": "8 links, potentially icon-only links such as social media icons in the footer and arrow/carousel controls near the logos section",
+      "recommendation": "Add descriptive aria-label or visually hidden text to all icon-only or ambiguous links..."
+    }
+  ]
+}</p>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>The cards, for real — built from Figma, wired to live data</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/page.js · app/page.module.css</p>
+            <p>Built the three card types, the badge system (severity, confidence, working-quality — each with its own icon and light/dark color pair pulled from the updated <code>CLAUDE.md</code> palette), and the six header color variants, all as local components inside <code>page.js</code> rather than a new <code>components/</code> folder — three card types doesn't yet justify splitting files. Reviewed first as a static mockup with hardcoded "Lorem ipsum" text and one card of each type, so the design could be checked before wiring it to anything live — then the schema from the previous session dropped in underneath it with no rendering changes needed, since the card renderer was already written generically over arrays rather than hardcoded to "exactly one" of anything.</p>
+            <p>Three real bugs, each a good example of the gap between "looks right" and "is right":</p>
+            <ul>
+              <li><strong>Header title misaligned with its badge</strong> — the obvious-looking fix (tweaking <code>line-height</code> on the title) did nothing, because the actual cause was a stale <code>.result p</code> rule left over from the pre-card markdown-rendering days. As a class+element selector it had higher specificity than the card's own class-only rules, so it was silently overriding <code>.cardHeaderTitle</code>'s margin — a 12px phantom bottom margin was throwing off the flex row's centering by exactly 6px. Found by measuring actual <code>getBoundingClientRect()</code> values rather than trusting a screenshot, which is also how the first, wrong theory got ruled out instead of shipped.</li>
+              <li><strong>Cards rendering at 588px instead of 540px</strong> — <code>width: 100%</code> plus horizontal padding under the default <code>box-sizing: content-box</code> adds the padding on top of the 100% instead of inside it: 540 + 24 + 24 = 588, exactly the gap reported. Fixed with a scoped <code>box-sizing: border-box</code> on just the two affected rules, rather than a global reset that risked shifting other already-tuned elements (like the URL field) that weren't hitting this bug.</li>
+              <li><strong>A malformed API response</strong> caught in testing before either of the above: one live run returned <code>workingWell</code> as a string containing a stringified copy of the entire response, not the array the schema requires. Confirmed non-reproducible on a second run, but added a defensive check in <code>route.js</code> anyway — <code>enum</code> values are followed near-perfectly, but a schema's <code>type: "array"</code> is a strong steering signal, not a hard guarantee, and a rare malformed response is better surfaced as a clear error than passed on to break whatever renders next.</li>
+            </ul>
+            <p>Verified end to end in a real browser, not just via curl: loading choreography still holds with real cards instead of markdown, tabs correctly stay inert until data lands, a full response renders all 6 possible Heuristics cards and 5 Accessibility cards without breaking, and a simple page with fewer real issues degrades to a shorter, still-correct card stack rather than looking broken or empty.</p>
+            <div class="exhibit">
+              <figure class="exhibit"><img src="assets/images/heuristic-cards.png" alt="AUGUR Heuristics tab showing real working and issue cards with color-coded severity headers, badges, and icons, all built from the Figma card components." loading="lazy" /><figcaption>Real cards, real data — Critical/Severe/Moderate headers, confidence and rating badges, all from a live evaluation</figcaption></figure>
+            </div>
+          </div>
+        </li>
+
+        <li class="session session--done">
+          <div class="session-rail"><div class="session-node"></div></div>
+          <div class="session-body col">
+            <div class="session-head"><h3>Redesigned loading state: a cycling phrase, not just dots</h3><span class="pill pill--done">Built</span></div>
+            <p class="session-summary">app/page.js · app/page.module.css</p>
+            <p>Tabs are no longer rendered-but-disabled before a result exists — they're not in the DOM at all, replaced by a fixed-height "tab zone" that reserves the same space so nothing shifts when they do appear. Into that zone: a large semi-bold phrase, cycling through 10 options ("...evaluating...", "...running heuristics...", and so on), each fading in over 0.6s, holding 1.8s, fading out over 0.6s, then advancing — looping back to the first phrase if a response takes long enough to need it. The placeholder copy no longer fades on submit at all; on a first-ever evaluation it just stays put for the whole wait. On a repeat submission, the previous tabs and cards fade out over 0.6s the instant Evaluate is clicked, while the phrase cycle simultaneously fades in, always restarting at "...evaluating...".</p>
+            <p>The cycle is driven by one <code>useEffect</code> keyed on <code>[loading, phraseIndex]</code>: it fades the current phrase in, schedules its own hold-then-fade-out, then advances the index — which re-triggers the same effect for the next phrase, chaining indefinitely while <code>loading</code> stays true. Its cleanup fires the instant <code>loading</code> flips false, so nothing lingers or fires after the fact.</p>
+            <p>Originally scoped to also fade the arrival of real data in over 0.18s — dropped in favor of an instant snap once it was clear that gracefully interrupting a CSS transition already mid-flight (partway through a 0.6s fade-in, or mid-hold) to redirect it into a <em>different, faster</em> transition was real added complexity for a moment most users won't consciously register either way. Simpler code, same result where it actually matters.</p>
+            <div class="exhibit">
+              <figure class="exhibit"><img src="assets/images/loading-phrases.png" alt="AUGUR mid-evaluation, showing the large semi-bold phrase '...evaluating...' centered where the tab row will appear, with the placeholder copy still visible below and the button's loading dots animating." loading="lazy" /><figcaption>The phrase cycle, mid-fade, with the placeholder still visible beneath it</figcaption></figure>
+            </div>
+          </div>
+        </li>
+
+      </ol>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="wrap">
+    <div class="col">
+      <h2>Where this is headed</h2>
+      <p>Not yet built, roughly in the order it's likely to get tackled:</p>
+      <ul class="notes-list">
+        <li><span class="note-label">Annotated screenshot</span><p>Rather than asking the model to guess pixel coordinates, pull real element positions from the live DOM (already available via Playwright) and draw numbered markers from exact bounding boxes, paired with numbered cards.</p></li>
+        <li><span class="note-label">Figma node input</span><p>A second, separate input path — Figma's own image-export API, not Playwright — since a Figma node has no live DOM to pull accessibility data from.</p></li>
+        <li><span class="note-label">Heuristic frameworks</span><p>Layer in Nielsen-Norman's heuristics and Everett McKay's principles as explicit evaluation lenses alongside WCAG, rather than one generic "UX expert" prompt.</p></li>
+      </ul>
+    </div>
+    </div>
+  </section>
+
+  <section id="prompt-log">
+    <div class="wrap">
+    <div class="col">
+      <h2>System prompt log</h2>
+      <p>The system prompt is a design artifact in its own right — every version sent to Claude alongside each screenshot, in order. There was no system prompt at all until the screenshot pipeline was in place; before that, the instruction lived entirely in the per-request message ("React to this: ...").</p>
+      <ul class="prompt-log">
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v1</span><span class="prompt-date">2026-07-04</span></div>
+          <p class="prompt-text">You are a UX expert. Evaluate whatever is sent.</p>
+          <p class="prompt-rationale">Established a fixed evaluative lens. Before this, the model reacted to the screenshot with no stance at all — this made every reply read as a UX evaluation specifically, which is the actual point of the app.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v2</span><span class="prompt-date">2026-07-04</span></div>
+          <p class="prompt-text">You are a UX expert. Evaluate whatever is given to you in a professional UX critique. Say what's working well, what can be improved, and suggestions for how to improve it.</p>
+          <p class="prompt-rationale">Moved from an open-ended reaction to a structured critique — what's working, what to improve, concrete suggestions — closer to a real UX critique format, and a natural stepping stone toward the card-based output on the roadmap.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v3</span><span class="prompt-date">2026-07-05</span></div>
+          <p class="prompt-text">Give a professional evaluation of whatever is sent.</p>
+          <p class="prompt-rationale">A deliberate experiment: dropping "UX" and "expert" entirely to see whether the evaluative lens holds without being told what kind of expert to be. It still reads as design-flavored — Claude infers that from getting an image — but the response loses the explicit working/improve/suggest structure v2 established.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v4</span><span class="prompt-date">2026-07-05</span></div>
+          <p class="prompt-text">Please give an evaluation of whatever is sent based on WCAG 2.2 standards. Refer to https://www.w3.org/TR/WCAG22/ for these standards.</p>
+          <p class="prompt-rationale">First attempt at a standards-framed evaluation — and a real instance of the deterministic-vs-probabilistic trust problem on the roadmap. This API call has no browsing or tool use wired in, so Claude never actually fetches that URL; it cites specific WCAG success-criterion numbers from its training data and estimates hex color values from the screenshot ("approx."), sounding precise while actually inferring. Confirms automated tooling (axe-core) belongs alongside this, not instead of it, once that's built.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v5</span><span class="prompt-date">2026-07-05</span></div>
+          <p class="prompt-text">Evaluate whatever is sent to you against the Norman-Neilson Group's 10 Heuristic Standards. Say what is working well, what needs improvement, and a recommendattion for what needs improvement.</p>
+          <p class="prompt-rationale">Sent with the typo intact ("Norman-Neilson," "recommendattion") on purpose, to see how the model handles it. Claude silently read it as the real Nielsen Norman Group and evaluated against their actual 10 usability heuristics, naming the correction in its reply rather than getting stuck on the misspelling — a small, real example of how forgiving the model is of imprecise prompt wording.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v6</span><span class="prompt-date">2026-07-05</span></div>
+          <p class="prompt-text">Evaluate whatever is sent to you against the Nielsen Norman Group's 10 Heuristic Standards. Say what is working well, what needs improvement, and a recommendation for what needs improvement.</p>
+          <p class="prompt-rationale">Corrected the two typos from v5 ("Norman-Neilson" → "Nielsen Norman," "recommendattion" → "recommendation") now that the experiment in tolerance was done. Wording and intent otherwise unchanged.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v7</span><span class="prompt-date">2026-07-06</span></div>
+          <p class="prompt-text">You are being given an image of a URL and a structured text block of accessibility findings for that same URL from an automated scan.
+
+Conduct a heuristic evaluation of the URL image based on the Nielsen-Norman Group's 10 heuristic standards. Weight the content of the page as less than the structure and interaction elements of the page. Return 2 things about the URL that are working well. Then list up to 5 most important issues that the heuristic evaluation finds need improvement, along with the severity of those issues (Minor/Moderate/Severe/Critical), and a confidence level of your assessment (Confident/Observed/Suspected/Unsure- needs confirmation). Describe the element on the page you are assessing, address what heuristic standard(s) it has been measured against, describe in plain English what the problem is. Give a recommendation on how it can be resolved. Do this for all heuristic issues reported back. The 2 things about the URL that are working well can be less structured. Give a title above these findings, both the things working well and the issues that need improvement: HEURISTICS
+
+For the accessibility information given to you in a structured text block, treat this as verified fact. Return up to 5 of the most important issues you find in the accessibility report, in order of severity. Describe the elements of the site that each of them affect. Report the severity level as found in the text block. Explain in plain English what is wrong with each, and propose a solution. Give a title above this report: ACCESSIBILITY</p>
+          <p class="prompt-rationale">The first prompt written alongside the axe-core integration, and the first to go through several rounds of real back-and-forth before shipping rather than one shot: separating a <em>severity</em> scale from a <em>confidence</em> scale for heuristic issues (subjective judgment, self-rated uncertainty) while telling Claude to treat the axe-core data as verified fact and report its severity verbatim (objective, no self-rating needed) — a direct, working example of the deterministic-vs-probabilistic distinction this whole project keeps circling back to. Also the first prompt to explicitly ask for section titles (HEURISTICS / ACCESSIBILITY) previewing the tab split in <code>CLAUDE.md</code>, and the first that required real <code>max_tokens</code> tuning: 2100 truncated the accessibility section mid-item; 3200 completed cleanly.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v8</span><span class="prompt-date">2026-07-06</span></div>
+          <p class="prompt-text">You are being given an image of a URL and a structured text block of accessibility findings for that same URL from an automated scan.
+
+Conduct a heuristic evaluation of the URL image based on the Nielsen-Norman Group's 10 heuristic standards. Weight the content of the page as less than the structure and interaction elements of the page. Return 2 things about the URL that are working well. Then list up to 5 most important issues that the heuristic evaluation finds need improvement, along with the severity of those issues (Minor/Moderate/Severe/Critical), and a confidence level of your assessment (Confident/Observed/Suspected/Unsure- needs confirmation). Check your list of up to 5 issues against the list of the 5 most important issues surfaced in the accessibility information - if a heuristic issue is already covered by an issue in the 5 accessibility issues you will surface, skip that heuristic issue and surface the next most severe issue instead. There may be up to or less than 5 heuristic issues surfaced. Describe the element on the page you are assessing, address what heuristic standard(s) it has been measured against, describe in plain English what the problem is. Give a recommendation on how it can be resolved. Do this for all heuristic issues reported back. The 2 things about the URL that are working well can be less structured. Give a title above these findings, both the things working well and the issues that need improvement: HEURISTICS
+
+For the accessibility information given to you in a structured text block, treat this as verified fact. Return up to 5 of the most important issues you find in the accessibility report, in order of severity. Describe the elements of the site that each of them affect. Report the severity level as found in the text block. Explain in plain English what is wrong with each, and propose a solution. Give a title above this report: ACCESSIBILITY</p>
+          <p class="prompt-rationale">Added one instruction: cross-check the up-to-5 heuristic issues against the up-to-5 accessibility issues, and skip any heuristic issue already covered by an accessibility one rather than reporting the same problem twice under two labels. Deliberately left "already covered by" undefined rather than spelling out a strict-vs-thematic matching rule — an intentional choice to let the model's own judgment decide, embracing rather than minimizing the resulting run-to-run variability. Considered moving the instruction to a final review-style paragraph after both sections instead of inline within HEURISTICS, but since Claude processes the entire prompt before generating any output, paragraph order doesn't gate correctness here — kept inline, next to the behavior it modifies, for human readability when maintaining this file.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v9</span><span class="prompt-date">2026-07-07</span></div>
+          <p class="prompt-text">You are being given an image of a URL and a structured text block of accessibility findings for that same URL from an automated scan.
+
+Conduct a heuristic evaluation of the URL image based on the Nielsen-Norman Group's 10 heuristic standards. Weight the content of the page as less than the structure and interaction elements of the page. Return 2 things about the URL that are working well. Then list up to 5 most important issues that the heuristic evaluation finds need improvement, along with the severity of those issues (Minor/Moderate/Severe/Critical), and a confidence level of your assessment (Confident/Observed/Suspected/Unsure- needs confirmation). Check your list of up to 5 issues against the list of the 5 most important issues surfaced in the accessibility information - if a heuristic issue is already covered by an issue in the 5 accessibility issues you will surface, skip that heuristic issue and surface the next most severe issue instead. There may be up to or less than 5 heuristic issues surfaced. Describe the element on the page you are assessing, address what heuristic standard(s) it has been measured against, describe in plain English what the problem is. Give a recommendation on how it can be resolved. Do this for all heuristic issues reported back. The 2 things about the URL that are working well can be less structured. Give a title above these findings, both the things working well and the issues that need improvement: # HEURISTICS (the title must be on its own line, with the "#" markup to indicate a heading)
+
+For the accessibility information given to you in a structured text block, treat this as verified fact. Return up to 5 of the most important issues you find in the accessibility report, in order of severity. Describe the elements of the site that each of them affect. Report the severity level as found in the text block. Explain in plain English what is wrong with each, and propose a solution. Give a title above this report: # ACCESSIBILITY (the title must be on its own line, with the "#" markup to indicate a heading)</p>
+          <p class="prompt-rationale">Not a content change — tightened the existing section-title instruction so the frontend could reliably split the reply into two real tabs instead of one blended blob. Requiring an exact <code>#</code> heading, on its own line, is what makes text-based splitting practical without a full JSON rewrite. Still not a hard guarantee, since the model's compliance with any text instruction is probabilistic rather than contractual — the frontend's split function matches case-insensitively and falls back to showing the whole reply under Heuristics if the heading's ever missing, so a rare miss degrades gracefully instead of breaking.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v10</span><span class="prompt-date">2026-07-08</span></div>
+          <p class="prompt-text">You are being given an image of a URL and a structured text block of accessibility findings (WCAG 2.2) for that same URL from an automated scan.
+
+Conduct a heuristic evaluation of the URL image based on the Nielsen-Norman Group's 10 heuristic standards. Weight the content of the page as less than the structure and interaction elements of the page.
+
+Return 2 things about the URL that are working well. Give each: 1. A rating (Excellent, Efficient, Strong, Adequate), 2. Cite the one heuristic standard (of the Nielsen-Norman Group's 10) it is most related to, 3. a short (1-2 sentence) summary of what is working well and why, 4. A confidence rating of your assessment (High Confidence, Confident, Suspected, Uncertain) based on the URL image.
+
+Then find up to 4 most of the important issues that the heuristic evaluation finds need improvement. For each issue, return: 1. The severity of the issue (Critical, Severe, Moderate, Minor), 2. the one heuristic standard it most relates to, 3. a title for this issue (what's wrong in plain English), 4. a description of the issue (short paragraph on what it is, how and/or why it violates the standard, why this is important) in plain English, 5. a recommendation to fix the issue, 6. any other secondary heuristic standards it may relate to (optional - if only one standard, return "none" for secondary standards), 7. your confidence in your evaluation of this issue based on a screenshot image (High Confidence, Confident, Suspected, Uncertain). List these for each of the up to 4 issues returned. List the issues in order of severity.
+
+Check your list of up to 4 issues against the list of the 5 most important issues surfaced in the accessibility information - if a heuristic issue is already covered by an issue in the 5 accessibility issues you surface, skip that heuristic issue and surface the next most severe issue instead. If no other issues exist, do not invent any. There may be up to or less than 4 heuristic issues surfaced.
+
+Give a title above these heuristic findings, both the things working well and the issues that need improvement: # HEURISTICS (the title must be on its own line, with the "#" markup to indicate a heading)
+
+For the accessibility information given to you in a structured text block, treat this as verified fact. Return up to 5 of the most important issues you find in the accessibility report, in order of severity.
+
+For each of the up to 5 accessibility issues, return: 1. Severity of the issue (Critical, Severe, Moderate, Minor), 2. The WCAG 2.2 standard the issue violated, 3. a descriptive title for this issue (what's wrong in plain English), 4. A description of this issue in plain English (a short paragraph of what it is, how/why it violates the WCAG standard, why this is important), 5. The elements on the page it is affecting, with approximate location on the page if that is applicable, 6. A recommendation for how to fix it.
+
+Give a title above these accessibility findings: # ACCESSIBILITY (the title must be on its own line, with the "#" markup to indicate a heading)</p>
+          <p class="prompt-rationale">The big one: rewritten field-by-field against real Figma card components (a "components" page with a severity badge, a confidence badge, a working-quality badge, and three card types — heuristic-improvement, heuristic-working, accessibility) rather than written first and rendered later. Every field the prompt now asks for corresponds to an exact slot on a card, and every fixed-vocabulary value (severity, confidence, working-quality rating) was checked against the literal strings the badge components render, not just written to sound reasonable. Positives went from freeform text to four structured fields (rating, standard, summary, confidence) to match the working-card, which also surfaced a real component gap — severity headers only existed for critical/moderate until severe/minor variants were added to match.</p>
+          <p class="prompt-rationale">Three review passes before this shipped, which is its own small case study in prompt review: pass one caught the confidence scale not matching any badge state at all (<code>Observed</code>/<code>Unsure- needs confirmation</code> didn't exist as options) and the positives section missing a rating and confidence entirely; pass two caught "Effective" where the badge literally says "Efficient" — a real word, just the wrong one, the kind of mismatch a spellchecker won't catch; pass three caught a dropped closing instruction that would have silently broken the tab split — the reply would have rendered complete and readable, just entirely under the Heuristics tab, with nothing in Accessibility. None of the three were visible from reading the prompt in isolation; all three only showed up by checking it against what the cards and the frontend's split logic actually require.</p>
+        </li>
+        <li>
+          <div class="prompt-entry-head"><span class="prompt-version">v11</span><span class="prompt-date">2026-07-08</span></div>
+          <p class="prompt-text">You are being given an image of a URL and a structured text block of accessibility findings (WCAG 2.2) for that same URL from an automated scan.
+
+Conduct a heuristic evaluation of the URL image based on the Nielsen-Norman Group's 10 heuristic standards. Weight the content of the page as less than the structure and interaction elements of the page.
+
+Return 2 things about the URL that are working well. Give each: 1. A rating (Excellent, Efficient, Strong, Adequate), 2. Cite the one heuristic standard (of the Nielsen-Norman Group's 10) it is most related to, 3. a short (1-2 sentence) summary of what is working well and why, 4. A confidence rating of your assessment (High Confidence, Confident, Suspected, Uncertain) based on the URL image.
+
+Then find up to 4 most of the important issues that the heuristic evaluation finds need improvement. For each issue, return, each on their own line: 1. The severity of the issue (use only: Critical, Severe, Moderate, Minor), 2. the one primary heuristic standard it most relates to, 3. a title for this issue (what's wrong in plain English), 4. a description of the issue (short paragraph on what it is, how and/or why it violates the standard, why this is important) in plain English, 5. a recommendation to fix the issue, 6. any other secondary heuristic standards it may relate to (optional - if only one standard, return "none" for secondary standards, separate from the primary standard), 7. your confidence in your evaluation of this issue based on a screenshot image (High Confidence, Confident, Suspected, Uncertain). List these for each of the up to 4 issues returned. List the issues in order of severity.
+
+Check your list of up to 4 issues against the list of the 5 most important issues surfaced in the accessibility information - if a heuristic issue is already covered by an issue in the 5 accessibility issues you surface, skip that heuristic issue and surface the next most severe issue instead. If no other issues exist, do not invent any. There may be up to or less than 4 heuristic issues surfaced.
+
+Give a title above these heuristic findings, both the things working well and the issues that need improvement: # HEURISTICS (the title must be on its own line, with the "#" markup to indicate a heading)
+
+For the accessibility information given to you in a structured text block, treat this as verified fact. Return up to 5 of the most important issues you find in the accessibility report, in order of severity.
+
+For each of the up to 5 accessibility issues, return: 1. Severity of the issue (use only: Critical, Severe, Moderate, Minor - if accessibility findings report "serious" severity, return it as "Severe"), 2. The WCAG 2.2 standard the issue violated, 3. a descriptive title for this issue (what's wrong in plain English), 4. A description of this issue in plain English (a short paragraph of what it is, how/why it violates the WCAG standard, why this is important), 5. The elements on the page it is affecting, with approximate location on the page if that is applicable, 6. A recommendation for how to fix it.
+
+Give a title above these accessibility findings: # ACCESSIBILITY (the title must be on its own line, with the "#" markup to indicate a heading)</p>
+          <p class="prompt-rationale">Fixed two real bugs observed in live output, not hypothetical ones. First: secondary heuristic standards occasionally landed in parentheses on the same line as the primary standard instead of as their own field — fixed with an explicit "each on their own line" instruction plus "separate from the primary standard." Second, more interesting: accessibility severity was consistently coming back as "Serious" instead of "Severe," despite the prompt already listing Severe as the only valid option. Root cause: axe-core's own severity scale really is <code>minor/moderate/serious/critical</code> — "serious," not "severe" — and framing that data as "verified fact" was nudging the model toward fidelity to the source's own wording over the app's fixed vocabulary. An enum list alone wasn't enough to override that pull; naming the exact collision directly ("if accessibility findings report 'serious' severity, return it as 'Severe'") was. Verified against a live site with real findings — zero instances of "serious"/"Serious" in the output, and every secondary-heuristic field cleanly separated on its own line.</p>
+        </li>
+      </ul>
+    </div>
+    </div>
+  </section>
+
+  <section id="status">
+    <div class="wrap">
+    <div class="col">
+      <h2>Where it stands</h2>
+      <table class="status-table">
+        <thead><tr><th>Area</th><th>State</th></tr></thead>
+        <tbody>
+          <tr><td>Frontend shell</td><td>Built — matches Figma spec: title, subtitle, URL field, Evaluate button, responsive at 620px</td></tr>
+          <tr><td>Backend route</td><td>Built — single Next.js API route, key read from <code>.env.local</code>, never hardcoded</td></tr>
+          <tr><td>Screenshot pipeline</td><td>Built — Playwright, full-page, base64-encoded, sent as a vision input</td></tr>
+          <tr><td>Accessibility scan</td><td>Built — axe-core, violations only (incomplete results deferred), same Playwright session as the screenshot</td></tr>
+          <tr><td>Model + system prompt</td><td>Built — Claude Sonnet 5; prompt actively being iterated on, see the <a href="#prompt-log">prompt log</a></td></tr>
+          <tr><td>Response length / layout</td><td>Built — no truncation, no clipping, page scrolls naturally</td></tr>
+          <tr><td>Tabs</td><td>Built — real content split (Heuristics/Accessibility), inert during loading, Heuristics auto-selected on arrival</td></tr>
+          <tr><td>Loading &amp; empty states</td><td>Built — bouncing-dot button animation, empty-state copy with a timed fade on submit; error and mid-load body states deferred</td></tr>
+          <tr><td>Structured card output</td><td>Built — tool-use JSON schema, three Figma-built card types, wired to live data</td></tr>
+          <tr><td>Input validation</td><td>Deliberately loose — syntactic check only, revisit later</td></tr>
+          <tr><td>Annotation, Figma node input, heuristic frameworks beyond Nielsen-Norman</td><td>Roadmap — not started</td></tr>
+          <tr><td>CLAUDE.md</td><td>Added — plain text, covers structure, palette, fonts, copy, and process</td></tr>
+        </tbody>
+      </table>
+    </div>
+    </div>
+  </section>
+
+  <section id="changelog">
+    <div class="wrap">
+    <div class="col">
+      <h2>Changelog</h2>
+      <p>Smaller fixes and decisions, logged without the full milestone treatment.</p>
+      <ul class="changelog-list">
+        <li><span class="changelog-date">2026-07-04</span><p>Fixed a CSS margin-collapse bug that put a stray white bar above the title.</p></li>
+        <li><span class="changelog-date">2026-07-04</span><p>Swapped the evaluation model from Claude Haiku 4.5 to Sonnet 5.</p></li>
+        <li><span class="changelog-date">2026-07-04</span><p>Reviewed how strictly the URL input is validated; decided to leave it permissive for now while still exploring the pipeline's behavior.</p></li>
+        <li><span class="changelog-date">2026-07-04</span><p>Renamed the app from Heuristics to AUGUR, locked in early rather than later. Earlier milestones and exhibits below are left as-is, since they accurately show what the app was called at the time.</p></li>
+        <li><span class="changelog-date">2026-07-04</span><p>Fixed timeouts on real company sites: swapped Playwright's <code>networkidle</code> wait (never fires on pages with chat widgets/analytics beacons) for <code>load</code>. That in turn exposed a second issue — a full-page capture never truly scrolls the page, so scroll-triggered content and lazy-loaded images stayed blank; fixed by stepping through the page before the real screenshot.</p></li>
+        <li><span class="changelog-date">2026-07-04</span><p>Fixed a 400 error on long pages (e.g. rippling.com): Claude's API rejects any image over 8000px on a side, which a full-page screenshot of a long marketing site can easily exceed. Added a resize step (via <code>sharp</code>) that only kicks in when a screenshot actually crosses that limit.</p></li>
+        <li><span class="changelog-date">2026-07-07</span><p>Fixed two bugs in the fade/loading behavior: the placeholder was unmounting instantly instead of fading, because its visibility was gated by a flag that flipped in the same click that started the fade — the element was gone before the CSS transition had anything to animate. And switching to Accessibility, then resubmitting, briefly flashed Heuristics content, because the tab selection was being cleared to signal "loading," and the body's content ternary defaulted to Heuristics whenever no tab was explicitly selected. Fixed both by consolidating into one <code>body</code> state that only changes when new data actually arrives (or the fade window elapses with nothing new), and driving the tabs' disabled state from <code>loading</code> instead of clearing the selection. Also lengthened the hold to 1.8s (was 1.2s) per the same request.</p></li>
+        <li><span class="changelog-date">2026-07-08</span><p>Raised <code>max_tokens</code> from 3200 to 3800 after noticing truncation in the Accessibility tab — the richer, card-aligned v10/v11 prompt asks for meaningfully more per issue than earlier versions did.</p></li>
+        <li><span class="changelog-date">2026-07-08</span><p>Card polish pass: wider badge padding and icon-to-label gap, tightened label-to-value spacing (with the AI Confidence Level field kept slightly looser on request), and a card width bug — cards were rendering at 588px instead of 540px, from <code>width: 100%</code> plus horizontal padding under default <code>box-sizing: content-box</code> adding the padding on top of the 100% rather than inside it.</p></li>
+        <li><span class="changelog-date">2026-07-09</span><p>Fixed accessibility card header titles left-aligning when they wrapped to two lines instead of staying right-aligned like single-line titles. Added <code>text-align: right</code> to the title and loosened its line-height slightly so wrapped lines aren't cramped together.</p></li>
+        <li><span class="changelog-date">2026-07-09</span><p>Fixed a card with an invisible header/badge, found on <a href="https://www.cameronsworld.net/">cameronsworld.net</a>: the "Serious" vs "Severe" wording leak from a few sessions back resurfaced — despite both a prompt instruction <em>and</em> a schema <code>enum</code>, the model occasionally still emits "Serious" verbatim. Since neither the badge nor the header color lookups had an entry for it, the badge silently rendered nothing and the header background fell through to transparent. Fixed with a server-side normalization pass in <code>route.js</code> (closest to the source) plus a defensive fallback in the frontend's <code>Badge</code>/<code>CardHeader</code> components, so any future unrecognized value degrades to a neutral look instead of the card appearing to lose a piece of itself.</p></li>
+        <li><span class="changelog-date">2026-07-09</span><p>Loading phrase cycle slowed down (0.6s → 0.72s fade, 1.8s → 2.2s hold) and recolored to the same bright amber as the AUGUR title, instead of the standard body-text color.</p></li>
+        <li><span class="changelog-date">2026-07-09</span><p>Fixed a 400 error that looked like it was about insecure (HTTP) sites but wasn't — the real cause was Claude's separate 10MB image file-size limit, independent of the existing 8000px dimension cap. A visually dense page (many small embedded images) can exceed 10MB even well under the pixel cap. Added an adaptive shrink loop in <code>route.js</code> that recalculates the needed scale from the actual measured overage each pass, rather than guessing a fixed step — file size doesn't scale linearly with pixel area for image-heavy pages, so a fixed decrement converged too slowly and undershot. Deliberately trades resolution for file size in this rare case: fewer pixels means both a smaller file and a lower token cost, since Claude's image tokens scale with pixel count, not file size.</p></li>
+        <li><span class="changelog-date">2026-07-09</span><p>Replaced the raw Chromium error ("page.goto: net::ERR_NAME_NOT_RESOLVED...") shown for a nonexistent domain (e.g. typing "banana") with "This URL does not exist. Please enter a valid URL.", styled the same large amber semi-bold as the loading phrases rather than small body text. Scoped narrowly to that one specific, common error for now — other error types still surface their own message text in the new styling, a broader error-message pass is still open.</p></li>
+        <li><span class="changelog-date">2026-07-09</span><p>Filled out the rest of the error-message pass: a real site that's just too slow now gets its own message distinct from "doesn't exist" (Playwright's 30s navigation timeout, not to be confused with a TCP-level connection timeout — the two produce different Chromium error codes and needed a real hanging local server to tell apart in testing); connection-refused, unreachable-address, and bad-certificate errors all fold into the same "Please enter a valid URL" bucket as blank/malformed input, on the reasoning that "browser can't reach this" and "input wasn't valid" read the same to a user regardless of which specific network layer failed; a real 404/500 from the target site is deliberately left unhandled — evaluating an error page is a legitimate thing to want; Anthropic-side rate-limiting/overload gets its own friendly message instead of leaking their raw JSON error shape; and a genuine frontend network hiccup (not a backend-reported error) gets a generic "something got messed up" fallback.</p></li>
+      </ul>
+    </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+  <div class="col">
+    <p>Living document — updated alongside the build, not after it.</p>
+    <p>Prototype built with Claude Code · this page last updated July 2026.</p>
+  </div>
+  </div>
+</footer>
+
+</body>
+</html>
