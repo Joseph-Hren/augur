@@ -345,19 +345,11 @@ export async function POST(request) {
   // limit, not spending it and rejecting the result afterward.
   if (VISITOR_COOKIE_LIMITER && IP_LIMITER) {
     const cookieStore = await cookies();
-    const devToken =
-      new URL(request.url).searchParams.get("dev") ??
-      cookieStore.get(DEV_BYPASS_COOKIE_NAME)?.value;
-    const isDevBypass = process.env.DEV_BYPASS_TOKEN && devToken === process.env.DEV_BYPASS_TOKEN;
+    const isDevBypass =
+      process.env.DEV_BYPASS_TOKEN &&
+      cookieStore.get(DEV_BYPASS_COOKIE_NAME)?.value === process.env.DEV_BYPASS_TOKEN;
 
-    if (isDevBypass) {
-      cookieStore.set(DEV_BYPASS_COOKIE_NAME, process.env.DEV_BYPASS_TOKEN, {
-        maxAge: DEV_BYPASS_COOKIE_MAX_AGE,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-      });
-    } else {
+    if (!isDevBypass) {
       const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
       let visitorId = cookieStore.get(VISITOR_COOKIE_NAME)?.value;
       if (!visitorId) {
@@ -502,4 +494,25 @@ export async function POST(request) {
 
     return Response.json({ error: err.message }, { status: 500 });
   }
+}
+
+// Visiting this route directly (not through the app's UI) with
+// ?dev=<DEV_BYPASS_TOKEN> sets the bypass cookie POST checks above for. A
+// query param on the page you're browsing never reaches a separate fetch()
+// call to this route, so the cookie has to be set here, from a request that
+// actually carries the param — a direct visit to this URL.
+export async function GET(request) {
+  const devToken = new URL(request.url).searchParams.get("dev");
+  if (!process.env.DEV_BYPASS_TOKEN || devToken !== process.env.DEV_BYPASS_TOKEN) {
+    return Response.json({ status: "No change." }, { status: 400 });
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(DEV_BYPASS_COOKIE_NAME, process.env.DEV_BYPASS_TOKEN, {
+    maxAge: DEV_BYPASS_COOKIE_MAX_AGE,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+  });
+  return Response.json({ status: "Dev bypass enabled for this browser." });
 }
