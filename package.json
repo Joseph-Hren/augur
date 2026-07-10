@@ -11,6 +11,8 @@
     "@anthropic-ai/sdk": "^0.32.1",
     "@axe-core/playwright": "^4.10.1",
     "@sparticuz/chromium-min": "^149.0.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.0",
     "next": "^15.0.3",
     "playwright": "^1.48.2",
     "playwright-core": "^1.61.1",
@@ -19,5 +21,8 @@
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
     "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "vercel": "^55.0.0"
   }
 }

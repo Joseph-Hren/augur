@@ -5,6 +5,10 @@ import sharp from "sharp";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
+import { cookies } from "next/headers";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 const MAX_IMAGE_DIMENSION = 8000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // Anthropic's hard limit (10,485,760 bytes exactly)
@@ -28,6 +32,35 @@ const axeSource = readFileSync(
   path.join(process.cwd(), "node_modules/axe-core/axe.min.js"),
   "utf8",
 );
+
+// Casual/accidental overuse protection — this is not the account's real
+// safety net. That's the spend cap set in the Anthropic Console, which
+// caps total spend regardless of how a request got made. This limiter
+// only exists to stop the common case (someone repeatedly submitting
+// URLs) well before that cap is ever relevant.
+//
+// Only constructed on Vercel: the Upstash credentials are Marketplace
+// secrets, readable by a real deployment at runtime but never exportable
+// back out (not via `vercel env pull`, not via the dashboard) — a
+// deliberate security property, not a gap. Local dev has no way to hold
+// those values, so it skips rate limiting entirely rather than requiring
+// them; only the deployed app is a shared resource worth protecting.
+const redis = process.env.VERCEL ? Redis.fromEnv() : null;
+
+// Two independent limiters, blocked if either is exhausted, rather than
+// one limiter keyed on ip+cookie together — a combined key means either
+// signal alone (e.g. clearing cookies, or an incognito window) resets the
+// count to zero. Requiring both to be defeated at once is a meaningfully
+// higher bar for the casual case this exists to stop.
+const VISITOR_COOKIE_LIMITER = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, "7 d"), prefix: "ratelimit:cookie" })
+  : null;
+const IP_LIMITER = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, "7 d"), prefix: "ratelimit:ip" })
+  : null;
+
+const VISITOR_COOKIE_NAME = "augur_visitor_id";
+const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 const SEVERITY_ENUM = ["Critical", "Severe", "Moderate", "Minor"];
 const CONFIDENCE_ENUM = ["High Confidence", "Confident", "Suspected", "Uncertain"];
@@ -284,6 +317,36 @@ export async function POST(request) {
     url = normalizeUrl(text.trim());
   } catch {
     return Response.json({ error: "Please enter a valid URL" }, { status: 400 });
+  }
+
+  // No-op locally (see the `redis` const above) — only the deployed app
+  // needs protecting. Must run before analyzePage() and the Anthropic call
+  // below: the whole point is avoiding that cost for requests over the
+  // limit, not spending it and rejecting the result afterward.
+  if (VISITOR_COOKIE_LIMITER && IP_LIMITER) {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const cookieStore = await cookies();
+    let visitorId = cookieStore.get(VISITOR_COOKIE_NAME)?.value;
+    if (!visitorId) {
+      visitorId = randomUUID();
+      cookieStore.set(VISITOR_COOKIE_NAME, visitorId, {
+        maxAge: VISITOR_COOKIE_MAX_AGE,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+      });
+    }
+
+    const [cookieResult, ipResult] = await Promise.all([
+      VISITOR_COOKIE_LIMITER.limit(visitorId),
+      IP_LIMITER.limit(ip),
+    ]);
+    if (!cookieResult.success || !ipResult.success) {
+      return Response.json(
+        { error: "You've used your evaluations for this week — check back soon." },
+        { status: 429 },
+      );
+    }
   }
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
