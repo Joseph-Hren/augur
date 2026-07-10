@@ -10,6 +10,10 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/react": ["./node_modules/axe-core/axe.min.js"],
   },
+  // @sparticuz/chromium (the Vercel-compatible Chromium build) resolves its
+  // own binary via relative paths at runtime — bundling it breaks that.
+  // playwright-core stays alongside it for the same reason.
+  serverExternalPackages: ["playwright-core", "@sparticuz/chromium"],
 };
 
 module.exports = nextConfig;

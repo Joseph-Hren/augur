@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { chromium } from "playwright";
+import { chromium } from "playwright-core";
+import chromiumBinary from "@sparticuz/chromium";
 import sharp from "sharp";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "fs";
@@ -180,7 +181,18 @@ function formatViolations(violations) {
 }
 
 async function analyzePage(url) {
-  const browser = await chromium.launch();
+  // Vercel has no browser pre-installed — @sparticuz/chromium supplies one
+  // built for serverless environments. Locally, playwright-core still finds
+  // the Chromium already installed in the standard cache (via `npx
+  // playwright install`, done once early in this project), so no special
+  // config is needed there.
+  const browser = process.env.VERCEL
+    ? await chromium.launch({
+        args: chromiumBinary.args,
+        executablePath: await chromiumBinary.executablePath(),
+        headless: true,
+      })
+    : await chromium.launch();
   try {
     // AxeBuilder opens an auxiliary page internally, which the single-page
     // context browser.newPage() creates doesn't allow — needs an explicit
