@@ -245,18 +245,31 @@ async function analyzePage(url) {
   // later invocation (github.com/Sparticuz/chromium — "Lambda /tmp fills
   // up after repeated invocations").
   const userDataDir = process.env.VERCEL ? `/tmp/pw-${randomUUID()}` : null;
-  const browser = process.env.VERCEL
-    ? await chromium.launch({
-        args: [...chromiumBinary.args, `--user-data-dir=${userDataDir}`],
-        executablePath: await chromiumBinary.executablePath(CHROMIUM_PACK_URL),
-        headless: true,
-      })
-    : await chromium.launch();
+  const viewport = { width: 1280, height: 800 };
+
+  // A custom user-data-dir isn't a plain launch() arg in Playwright (unlike
+  // Puppeteer) — it must go through launchPersistentContext(), which
+  // launches the browser and its one context together and returns that
+  // context directly, rather than a separate Browser to call
+  // newContext() on.
+  let browser = null;
+  let context;
+  if (userDataDir) {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      args: chromiumBinary.args,
+      executablePath: await chromiumBinary.executablePath(CHROMIUM_PACK_URL),
+      headless: true,
+      viewport,
+    });
+  } else {
+    browser = await chromium.launch();
+    context = await browser.newContext({ viewport });
+  }
+
   try {
-    // AxeBuilder opens an auxiliary page internally, which the single-page
-    // context browser.newPage() creates doesn't allow — needs an explicit
-    // context instead.
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    // AxeBuilder opens an auxiliary page internally, which a single-page
+    // context created via newPage() doesn't allow — needs an explicit
+    // context instead, which we already have either way above.
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "load", timeout: 30000 });
     await page.waitForTimeout(1000);
@@ -318,7 +331,12 @@ async function analyzePage(url) {
 
     return { screenshotBase64: output.toString("base64"), violationsText };
   } finally {
-    await browser.close();
+    // Closing a persistent context also closes the browser process that
+    // owns it — there's no separate `browser` to close in that case.
+    await context.close();
+    if (browser) {
+      await browser.close();
+    }
     if (userDataDir) {
       await rm(userDataDir, { recursive: true, force: true });
     }
