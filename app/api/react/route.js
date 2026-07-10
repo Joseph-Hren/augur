@@ -4,6 +4,7 @@ import chromiumBinary from "@sparticuz/chromium-min";
 import sharp from "sharp";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "fs";
+import { rm } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
@@ -228,9 +229,18 @@ async function analyzePage(url) {
   // the Chromium already installed in the standard cache (via `npx
   // playwright install`, done once early in this project), so no special
   // config is needed there.
+  //
+  // On Vercel, a unique --user-data-dir per invocation is required too —
+  // Playwright never cleans up its default profile directory between
+  // invocations, and Vercel's runtime can reuse the same warm container
+  // across many requests. Without this, that shared/never-cleaned profile
+  // is a documented cause of the Chromium process failing outright on a
+  // later invocation (github.com/Sparticuz/chromium — "Lambda /tmp fills
+  // up after repeated invocations").
+  const userDataDir = process.env.VERCEL ? `/tmp/pw-${randomUUID()}` : null;
   const browser = process.env.VERCEL
     ? await chromium.launch({
-        args: chromiumBinary.args,
+        args: [...chromiumBinary.args, `--user-data-dir=${userDataDir}`],
         executablePath: await chromiumBinary.executablePath(CHROMIUM_PACK_URL),
         headless: true,
       })
@@ -302,6 +312,9 @@ async function analyzePage(url) {
     return { screenshotBase64: output.toString("base64"), violationsText };
   } finally {
     await browser.close();
+    if (userDataDir) {
+      await rm(userDataDir, { recursive: true, force: true });
+    }
   }
 }
 
@@ -343,7 +356,10 @@ export async function POST(request) {
     ]);
     if (!cookieResult.success || !ipResult.success) {
       return Response.json(
-        { error: "You've used your evaluations for this week — check back soon." },
+        {
+          error:
+            "Currently, users are only allowed 3 submissions for evaluation per week. Please return next week to test another 3 URLs.",
+        },
         { status: 429 },
       );
     }
@@ -408,6 +424,13 @@ export async function POST(request) {
 
     return Response.json({ data: normalizeEvaluation(toolUse.input) });
   } catch (err) {
+    // Vercel's dashboard only shows request metadata (timing, memory) for
+    // requests we handle ourselves and return a normal response for — the
+    // actual error/stack trace is otherwise only visible in the JSON we
+    // send the browser. Logging it server-side too means a future
+    // occurrence is diagnosable from the logs alone.
+    console.error(err);
+
     // A domain that doesn't resolve (a typo, or plain nonsense like
     // "banana") surfaces as a raw Chromium network error otherwise —
     // technically accurate, not helpful to read.
