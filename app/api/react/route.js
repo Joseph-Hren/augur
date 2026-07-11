@@ -81,6 +81,32 @@ const RATING_ENUM = ["Excellent", "Efficient", "Strong", "Adequate"];
 // frontend alone to paper over it.
 const SEVERITY_ALIASES = { Serious: "Severe" };
 
+// A page with genuinely zero axe-core violations otherwise renders an
+// empty, broken-looking Accessibility tab — this replaces that with an
+// explicit positive result. Built here in code, not left to the model:
+// whether to show this card is tied directly to the scan's own violation
+// count (see analyzePage()'s hadNoViolations), not to trusting the model
+// to correctly report an empty array.
+//
+// "Suspected" confidence is deliberate and unique to this one card — every
+// other accessibility card is scan-verified fact and carries no confidence
+// badge at all. A scanner finding nothing is a real, positive signal, but
+// automated tools only cover a subset of WCAG (criteria needing human
+// judgment — meaningful alt text, reading order, keyboard traps in custom
+// widgets — aren't fully checkable this way), so "zero found" isn't the
+// same claim as "certified compliant."
+const NO_VIOLATIONS_CARD = {
+  severity: "Excellent",
+  standard: "No WCAG 2.2 violations found",
+  title: "Zero accessibility violations were found on this page.",
+  elementsAffected: "N/A — no violations detected",
+  description:
+    "This automated scan found no rule violations against WCAG 2.2. Automated scanning covers a meaningful subset of WCAG, but not everything — criteria that require human judgment (meaningful alt text, logical reading order, keyboard traps in custom widgets) aren't fully checkable this way.",
+  recommendation:
+    "Treat this as a strong positive signal, not a compliance guarantee — periodic manual and assistive-technology testing is still the only way to confirm full WCAG 2.2 conformance.",
+  confidence: "Suspected",
+};
+
 function normalizeEvaluation(data) {
   const normalizeIssue = (issue) => ({
     ...issue,
@@ -288,6 +314,7 @@ async function analyzePage(url) {
 
     const axeResults = await new AxeBuilder({ page, axeSource }).analyze();
     const violationsText = formatViolations(axeResults.violations);
+    const hadNoViolations = axeResults.violations.length === 0;
 
     const buffer = await page.screenshot({ fullPage: true, type: "png" });
 
@@ -329,7 +356,7 @@ async function analyzePage(url) {
       attempts++;
     }
 
-    return { screenshotBase64: output.toString("base64"), violationsText };
+    return { screenshotBase64: output.toString("base64"), violationsText, hadNoViolations };
   } finally {
     // Closing a persistent context also closes the browser process that
     // owns it — there's no separate `browser` to close in that case.
@@ -399,7 +426,7 @@ export async function POST(request) {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
-    const { screenshotBase64, violationsText } = await analyzePage(url);
+    const { screenshotBase64, violationsText, hadNoViolations } = await analyzePage(url);
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-5",
@@ -453,7 +480,12 @@ export async function POST(request) {
       );
     }
 
-    return Response.json({ data: normalizeEvaluation(toolUse.input) });
+    const normalized = normalizeEvaluation(toolUse.input);
+    if (hadNoViolations) {
+      normalized.accessibilityIssues = [NO_VIOLATIONS_CARD];
+    }
+
+    return Response.json({ data: normalized });
   } catch (err) {
     // Vercel's dashboard only shows request metadata (timing, memory) for
     // requests we handle ourselves and return a normal response for — the

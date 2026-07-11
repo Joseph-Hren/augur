@@ -142,6 +142,12 @@ function AccessibilityCard({ issue }) {
         <Field label="Page Elements Affected" value={issue.elementsAffected} />
         <Field label="Explanation" value={issue.description} />
         <Field label="Recommendation" value={issue.recommendation} />
+        {/* Every real, scan-derived card is verified fact and has no
+            confidence field — only the synthetic "no violations found"
+            card (see NO_VIOLATIONS_CARD in route.js) sets one. */}
+        {issue.confidence && (
+          <Field label="AI Confidence Level" value={<Badge value={issue.confidence} />} spaced />
+        )}
       </div>
     </div>
   );
