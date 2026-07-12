@@ -16,7 +16,17 @@ export default function RootLayout({ children }) {
       className={montserrat.className}
       style={{ backgroundColor: "#1D3842" }}
     >
-      <body style={{ margin: 0, backgroundColor: "#1D3842" }}>{children}</body>
+      <body
+        style={{
+          margin: 0,
+          backgroundColor: "#1D3842",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+        }}
+      >
+        {children}
+      </body>
     </html>
   );
 }

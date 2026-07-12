@@ -69,13 +69,18 @@ const HEADER_BG = {
 // badge disappearing and the header going transparent.
 const FALLBACK_STYLE = { bg: "#2d4550", text: "#d7eaf9", icon: null };
 
+// "Uncertain" reads as more actionable with this longer form, but the
+// underlying value stays "Uncertain" everywhere else (schema, STATUS_STYLES
+// lookup, prompt) — this is a display-only relabel, not a data change.
+const BADGE_LABELS = { Uncertain: "Uncertain: needs review" };
+
 function Badge({ value }) {
   if (!value) return null;
   const style = STATUS_STYLES[value] ?? FALLBACK_STYLE;
   return (
     <span className={styles.badge} style={{ backgroundColor: style.bg, color: style.text }}>
       {style.icon && <img className={styles.badgeIcon} src={`/icons/${style.icon}.svg`} alt="" />}
-      {value}
+      {BADGE_LABELS[value] ?? value}
     </span>
   );
 }
@@ -103,13 +108,29 @@ function Field({ label, value, bright, spaced }) {
   );
 }
 
+// Shared by all three card types. Renders nothing when confidence is
+// absent — true for every real, scan-derived accessibility card, which
+// carry no confidence field at all (see AccessibilityCard).
+function ConfidenceField({ confidence, reason }) {
+  if (!confidence) return null;
+  return (
+    <div>
+      <p className={`${styles.cardLabel} ${styles.cardLabelSpaced}`}>AI Confidence Level</p>
+      <p className={styles.cardValue}>
+        <Badge value={confidence} />
+      </p>
+      {reason && <p className={styles.confidenceReason}>{reason}</p>}
+    </div>
+  );
+}
+
 function WorkingCard({ item }) {
   return (
     <div>
       <CardHeader title={item.standard} badgeValue={item.rating} />
       <div className={styles.card}>
         <Field label="What's Working" value={item.summary} bright />
-        <Field label="AI Confidence Level" value={<Badge value={item.confidence} />} spaced />
+        <ConfidenceField confidence={item.confidence} reason={item.confidenceReason} />
       </div>
     </div>
   );
@@ -127,7 +148,7 @@ function HeuristicCard({ issue }) {
           label="Additional Heuristic Standards Considered"
           value={issue.secondaryStandards.length ? issue.secondaryStandards.join(", ") : "None"}
         />
-        <Field label="AI Confidence Level" value={<Badge value={issue.confidence} />} spaced />
+        <ConfidenceField confidence={issue.confidence} reason={issue.confidenceReason} />
       </div>
     </div>
   );
@@ -145,9 +166,7 @@ function AccessibilityCard({ issue }) {
         {/* Every real, scan-derived card is verified fact and has no
             confidence field — only the synthetic "no violations found"
             card (see NO_VIOLATIONS_CARD in route.js) sets one. */}
-        {issue.confidence && (
-          <Field label="AI Confidence Level" value={<Badge value={issue.confidence} />} spaced />
-        )}
+        <ConfidenceField confidence={issue.confidence} reason={issue.confidenceReason} />
       </div>
     </div>
   );
@@ -230,6 +249,7 @@ export default function Home() {
   const bodyClassName = fading ? `${styles.result} ${styles.fadeOut}` : styles.result;
 
   return (
+    <>
     <main className={styles.page}>
       <h1 className={styles.title}>AUGUR</h1>
       <p className={styles.subtitle}>
@@ -333,5 +353,18 @@ export default function Home() {
         )}
       </div>
     </main>
+    <footer className={styles.footer}>
+      AUGUR - a heuristic and accessibility evaluation tool. &copy; 2026 Joseph Hren (
+      <a
+        href="https://jrhren.com"
+        className={styles.footerLink}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        jrhren.com
+      </a>
+      )
+    </footer>
+    </>
   );
 }

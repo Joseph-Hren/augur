@@ -105,7 +105,12 @@ const NO_VIOLATIONS_CARD = {
   recommendation:
     "Treat this as a strong positive signal, not a compliance guarantee — periodic manual and assistive-technology testing is still the only way to confirm full WCAG 2.2 conformance.",
   confidence: "Suspected",
+  confidenceReason:
+    "This reflects the absence of any automated accessibility scan violations, not a full manual/visual audit.",
 };
+
+const CONFIDENCE_REASON_DESCRIPTION =
+  "One-sentence explanation for the confidence level: whether this finding is based on evidence directly visible in the screenshot, an inference about intent or composition that can't be directly verified from the image alone, or something else.";
 
 function normalizeEvaluation(data) {
   const normalizeIssue = (issue) => ({
@@ -144,8 +149,9 @@ const EVALUATION_TOOL = {
               description: "1-2 sentence summary of what is working well and why.",
             },
             confidence: { type: "string", enum: CONFIDENCE_ENUM },
+            confidenceReason: { type: "string", description: CONFIDENCE_REASON_DESCRIPTION },
           },
-          required: ["rating", "standard", "summary", "confidence"],
+          required: ["rating", "standard", "summary", "confidence", "confidenceReason"],
         },
       },
       heuristicIssues: {
@@ -175,6 +181,7 @@ const EVALUATION_TOOL = {
               items: { type: "string" },
             },
             confidence: { type: "string", enum: CONFIDENCE_ENUM },
+            confidenceReason: { type: "string", description: CONFIDENCE_REASON_DESCRIPTION },
           },
           required: [
             "severity",
@@ -184,6 +191,7 @@ const EVALUATION_TOOL = {
             "recommendation",
             "secondaryStandards",
             "confidence",
+            "confidenceReason",
           ],
         },
       },
@@ -232,6 +240,8 @@ Conduct a heuristic evaluation of the URL image based on the Nielsen-Norman Grou
 For heuristic issues: list in order of severity. Check your list of issues against the accessibility issues before finalizing — if a heuristic issue is already covered by one of the accessibility issues, skip it and surface the next most severe issue instead. If fewer than 4 real issues exist, return fewer. Do not invent issues to reach the limit.
 
 For accessibility issues, treat the provided scan data as verified fact — do not evaluate or second-guess it, only describe and explain it. List in order of severity. If fewer than 5 real issues exist in the data, return fewer.
+
+For every confidence rating you assign (working-well items and heuristic issues), give a one-sentence reason for it: is this based on evidence directly visible in the screenshot, an inference about intent or composition that can't be directly verified from the image alone, or something else.
 
 Submit your evaluation using the submit_evaluation tool.`;
 
