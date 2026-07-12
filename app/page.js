@@ -230,7 +230,7 @@ export default function Home() {
   const bodyClassName = fading ? `${styles.result} ${styles.fadeOut}` : styles.result;
 
   return (
-    <div className={styles.page}>
+    <main className={styles.page}>
       <h1 className={styles.title}>AUGUR</h1>
       <p className={styles.subtitle}>
         UX Heuristic Evaluation &amp; Accessibility Test for any URL
@@ -332,6 +332,6 @@ export default function Home() {
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }
