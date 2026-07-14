@@ -324,19 +324,48 @@ export default function Home() {
 
         {body.type === "result" && (
           <div className={bodyClassName}>
-            <div className={styles.cardStack}>
-              {selectedTab === "accessibility"
-                ? body.data.accessibilityIssues.map((issue, i) => (
-                    <AccessibilityCard key={i} issue={issue} />
-                  ))
-                : [
-                    ...body.data.workingWell.map((item, i) => (
-                      <WorkingCard key={`w${i}`} item={item} />
-                    )),
-                    ...body.data.heuristicIssues.map((issue, i) => (
-                      <HeuristicCard key={`h${i}`} issue={issue} />
-                    )),
-                  ]}
+            {/* Both sections are always in the DOM — only CSS decides which
+                one is visible. On screen, that's whichever tab is selected;
+                @media print shows both at once (each under its own heading)
+                so "Download PDF" produces one document with both sections,
+                not just whichever tab happened to be open. */}
+            <div
+              className={
+                selectedTab === "heuristics"
+                  ? styles.resultSection
+                  : `${styles.resultSection} ${styles.resultSectionHidden}`
+              }
+            >
+              <h2 className={styles.printSectionTitle}>Heuristics</h2>
+              <div className={styles.cardStack}>
+                {[
+                  ...body.data.workingWell.map((item, i) => <WorkingCard key={`w${i}`} item={item} />),
+                  ...body.data.heuristicIssues.map((issue, i) => (
+                    <HeuristicCard key={`h${i}`} issue={issue} />
+                  )),
+                ]}
+              </div>
+              <button type="button" className={styles.downloadPdf} onClick={() => window.print()}>
+                Download PDF
+              </button>
+            </div>
+
+            <div
+              className={
+                selectedTab === "accessibility"
+                  ? styles.resultSection
+                  : `${styles.resultSection} ${styles.resultSectionHidden}`
+              }
+            >
+              <h2 className={styles.printSectionTitle}>Accessibility</h2>
+              <div className={styles.cardStack}>
+                {body.data.accessibilityIssues.map((issue, i) => (
+                  <AccessibilityCard key={i} issue={issue} />
+                ))}
+              </div>
+              <button type="button" className={styles.downloadPdf} onClick={() => window.print()}>
+                Download PDF
+              </button>
             </div>
           </div>
         )}

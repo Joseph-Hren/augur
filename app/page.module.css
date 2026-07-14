@@ -342,3 +342,76 @@
     margin-top: 48px;
   }
 }
+
+.resultSection {
+  display: block;
+}
+
+.resultSectionHidden {
+  display: none;
+}
+
+/* Only meaningful in print — see @media print below. On screen the tab
+   buttons already say which section this is. */
+.printSectionTitle {
+  display: none;
+}
+
+.downloadPdf {
+  display: block;
+  width: 100%;
+  text-align: right;
+  margin: 16px 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  color: #ffe093;
+  cursor: pointer;
+}
+
+@media print {
+  /* Browsers don't print background colors/images by default — without
+     this, every badge and colored card header (the entire severity/status
+     signal the cards are built around) would print as plain white. This is
+     an inherited property, so setting it once here covers every card,
+     badge, and header nested inside. */
+  .page {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .primaryAction,
+  .tabZone,
+  .footer,
+  .downloadPdf {
+    display: none !important;
+  }
+
+  /* Title/subtitle are colored for the dark screen background — on the
+     white page background print actually uses (see .page above), the
+     amber title washes out and the subtitle is nearly invisible. */
+  .title,
+  .subtitle {
+    color: #383600 !important;
+  }
+
+  /* Both sections print, regardless of which tab was active on screen. */
+  .resultSectionHidden {
+    display: block !important;
+  }
+
+  .printSectionTitle {
+    display: block !important;
+    font-size: 20px;
+    font-weight: 700;
+    color: #383600;
+    margin: 32px 0 16px;
+  }
+
+  .resultSection:first-child .printSectionTitle {
+    margin-top: 0;
+  }
+}
