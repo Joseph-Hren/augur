@@ -291,6 +291,14 @@ async function analyzePage(url) {
   let browser = null;
   let context;
   if (userDataDir) {
+    // WebGL on serverless only works via a software (CPU) GL backend
+    // (swiftshader/ANGLE), which is inherently more fragile than real GPU
+    // rendering — a WebGL/canvas-heavy real-world site (observed on
+    // advisor360.com) can flood it with "Buffer Handle is null" GPU IPC
+    // errors until the renderer process dies mid-screenshot. We only need
+    // a screenshot for evaluation, not WebGL fidelity, so disabling it
+    // removes the whole failure class rather than working around it.
+    chromiumBinary.setGraphicsMode = false;
     context = await chromium.launchPersistentContext(userDataDir, {
       args: chromiumBinary.args,
       executablePath: await chromiumBinary.executablePath(CHROMIUM_PACK_URL),
