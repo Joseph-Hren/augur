@@ -334,7 +334,58 @@ async function analyzePage(url) {
     const violationsText = formatViolations(axeResults.violations);
     const hadNoViolations = axeResults.violations.length === 0;
 
-    const buffer = await page.screenshot({ fullPage: true, type: "png" });
+    // Chromium's native `fullPage: true` capture asks the browser to
+    // composite and encode one giant surface in a single call — reliable on
+    // a normal desktop Chromium, but a known failure point ("Unable to
+    // capture screenshot") for chrome-headless-shell running single-process
+    // with no GPU on Vercel, especially for long, image-heavy pages.
+    // Capturing one viewport-sized tile at a time and stitching them with
+    // sharp keeps every individual screenshot small regardless of page
+    // length, sidestepping that failure class entirely.
+    //
+    // Fixed/sticky elements (e.g. a sticky header) would otherwise be
+    // captured fresh — and so duplicated — in every tile, since they
+    // re-pin to the viewport on each scroll. Converting them to `absolute`
+    // at their current on-page position freezes them in place for the rest
+    // of the capture, matching how Chromium's own fullPage capture already
+    // handles them. Done after the axe scan so axe still audits the page's
+    // real, unmodified styles.
+    await page.evaluate(() => {
+      document.querySelectorAll("*").forEach((el) => {
+        const position = getComputedStyle(el).position;
+        if (position === "fixed" || position === "sticky") {
+          const rect = el.getBoundingClientRect();
+          el.style.position = "absolute";
+          el.style.top = `${rect.top + window.scrollY}px`;
+          el.style.left = `${rect.left + window.scrollX}px`;
+        }
+      });
+    });
+
+    // Recomputed rather than reusing `height` above — the scroll-priming
+    // loop can itself grow the page (lazy content revealed along the way),
+    // so the pre-scroll measurement can undercount.
+    const totalHeight = await page.evaluate(() => document.body.scrollHeight);
+    const tileCount = Math.max(1, Math.ceil(totalHeight / viewport.height));
+    const tiles = [];
+    for (let i = 0; i < tileCount; i++) {
+      const scrollY = Math.min(i * viewport.height, Math.max(totalHeight - viewport.height, 0));
+      await page.evaluate((y) => window.scrollTo(0, y), scrollY);
+      await page.waitForTimeout(100);
+      tiles.push({ input: await page.screenshot({ type: "png" }), top: scrollY, left: 0 });
+    }
+
+    const buffer = await sharp({
+      create: {
+        width: viewport.width,
+        height: totalHeight,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 },
+      },
+    })
+      .composite(tiles)
+      .png()
+      .toBuffer();
 
     // Claude's API rejects any image over 8000px on a side; a full-page
     // screenshot of a long marketing site can easily exceed that. Only
