@@ -54,10 +54,10 @@ const redis = process.env.VERCEL ? Redis.fromEnv() : null;
 // count to zero. Requiring both to be defeated at once is a meaningfully
 // higher bar for the casual case this exists to stop.
 const VISITOR_COOKIE_LIMITER = redis
-  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, "7 d"), prefix: "ratelimit:cookie" })
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "7 d"), prefix: "ratelimit:cookie" })
   : null;
 const IP_LIMITER = redis
-  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, "7 d"), prefix: "ratelimit:ip" })
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "7 d"), prefix: "ratelimit:ip" })
   : null;
 
 const VISITOR_COOKIE_NAME = "augur_visitor_id";
@@ -484,7 +484,7 @@ export async function POST(request) {
         return Response.json(
           {
             error:
-              "Currently, users are only allowed 3 submissions for evaluation per week. Please return next week to test another 3 URLs.",
+              "Currently, users are only allowed 10 submissions for evaluation per week. Please return next week to test another 10 URLs.",
           },
           { status: 429 },
         );
