@@ -8,7 +8,6 @@
     "start": "next start"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
     "@axe-core/playwright": "^4.10.1",
     "@sparticuz/chromium-min": "^149.0.0",
     "@upstash/ratelimit": "^2.0.8",

@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import { Ratelimit } from "@upstash/ratelimit";
@@ -11,9 +10,10 @@ import {
   normalizeEvaluation,
   normalizeUrl,
 } from "../../../lib/evaluation";
+import { callKimi } from "../../../lib/kimi";
 
 // Casual/accidental overuse protection — this is not the account's real
-// safety net. That's the spend cap set in the Anthropic Console, which
+// safety net. That's the spend cap set in the Moonshot (Kimi) console, which
 // caps total spend regardless of how a request got made. This limiter
 // only exists to stop the common case (someone repeatedly submitting
 // URLs) well before that cap is ever relevant.
@@ -63,7 +63,7 @@ export async function POST(request) {
   }
 
   // No-op locally (see the `redis` const above) — only the deployed app
-  // needs protecting. Must run before analyzePage() and the Anthropic call
+  // needs protecting. Must run before analyzePage() and the Kimi call
   // below: the whole point is avoiding that cost for requests over the
   // limit, not spending it and rejecting the result afterward.
   if (VISITOR_COOKIE_LIMITER && IP_LIMITER) {
@@ -94,6 +94,8 @@ export async function POST(request) {
           {
             error:
               "Currently, users are only allowed 10 submissions for evaluation per week. Please return next week to test another 10 URLs.",
+            note:
+              "If you have reached this message, you find this app useful, and need more of it, please contact me. I cannot promise same-day response, but if you drop me a line and tell me your situation, I can probably help.\n\njoseph.r.hren@gmail.com",
           },
           { status: 429 },
         );
@@ -101,52 +103,22 @@ export async function POST(request) {
     }
   }
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   try {
     const { screenshotBase64, violationsText, hadNoViolations } = await analyzePage(url);
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: 3800,
-      system: SYSTEM_PROMPT,
-      tools: [EVALUATION_TOOL],
-      tool_choice: { type: "tool", name: "submit_evaluation" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: "image/png",
-                data: screenshotBase64,
-              },
-            },
-            {
-              type: "text",
-              text: `URL: ${url}`,
-            },
-            {
-              type: "text",
-              text: `Automated accessibility scan (axe-core) — confirmed violations:\n\n${violationsText}`,
-            },
-          ],
-        },
-      ],
+    const evaluationInput = await callKimi({
+      url,
+      screenshotBase64,
+      violationsText,
+      systemPrompt: SYSTEM_PROMPT,
+      tool: EVALUATION_TOOL,
     });
-
-    const toolUse = message.content.find((block) => block.type === "tool_use");
-    if (!toolUse) {
-      return Response.json({ error: "Model did not return a structured evaluation" }, { status: 500 });
-    }
 
     // The schema's "array" types are a strong steering signal, not a hard
     // guarantee the way enum values are — occasionally a field comes back
     // malformed (e.g. a stringified copy of the whole object instead of the
     // expected array). Catch that here rather than pass corrupted data on.
-    const { workingWell, heuristicIssues, accessibilityIssues } = toolUse.input;
+    const { workingWell, heuristicIssues, accessibilityIssues } = evaluationInput;
     if (
       !Array.isArray(workingWell) ||
       !Array.isArray(heuristicIssues) ||
@@ -158,7 +130,7 @@ export async function POST(request) {
       );
     }
 
-    const normalized = normalizeEvaluation(toolUse.input);
+    const normalized = normalizeEvaluation(evaluationInput);
     if (hadNoViolations) {
       normalized.accessibilityIssues = [NO_VIOLATIONS_CARD];
     }
@@ -208,9 +180,9 @@ export async function POST(request) {
       return Response.json({ error: "Please enter a valid URL" }, { status: 400 });
     }
 
-    // Anthropic's own service being rate-limited or temporarily overloaded
+    // Kimi's own service being rate-limited or temporarily overloaded
     // — otherwise leaks their raw JSON error shape.
-    if (err.message.includes("rate_limit_error") || err.message.includes("overloaded_error")) {
+    if (err.message.includes("Kimi API error (429)") || err.message.includes("Kimi API error (503)")) {
       return Response.json(
         {
           error:

@@ -232,7 +232,7 @@ export default function Home() {
         // keeps whichever tab was already selected.
         setSelectedTab((prev) => prev ?? "heuristics");
       } else {
-        setBody({ type: "error", message: data.error });
+        setBody({ type: "error", message: data.error, note: data.note });
       }
     } catch {
       // A network hiccup on the fetch to our own /api/react route, not a
@@ -319,6 +319,7 @@ export default function Home() {
         {body.type === "error" && (
           <div className={bodyClassName}>
             <p className={styles.errorMessage}>{body.message}</p>
+            {body.note && <p className={styles.errorNote}>{body.note}</p>}
           </div>
         )}
 

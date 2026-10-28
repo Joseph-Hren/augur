@@ -170,6 +170,16 @@
   color: #ffe093;
 }
 
+.errorNote {
+  width: 100%;
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 400;
+  color: #a9bdd8;
+  white-space: pre-line;
+}
+
 .tab {
   padding: 12px 29px;
   font-size: 18px;
